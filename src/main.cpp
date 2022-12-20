@@ -342,27 +342,29 @@ void generate_piece_moves(Move *const movelist,
 }
 
 const int phases[] = {0, 1, 1, 2, 4, 0};
-const int material[] = {S(79, 128), S(421, 292), S(404, 327), S(556, 596), S(1271, 1060), 0};
-const int max_material[] = {128, 421, 404, 596, 1271, 0, 0};
+const int max_material[] = {133, 418, 401, 603, 1262, 0, 0};
+const int material[] = {S(75, 133), S(418, 295), S(401, 330), S(544, 603), S(1262, 1072), 0};
 const int psts[][4] = {
-    {S(-18, -1), S(-0, -6), S(9, 6), S(9, 1)},
-    {S(-22, -0), S(-5, -2), S(8, 1), S(20, 0)},
-    {S(1, -4), S(1, -2), S(-3, 1), S(1, 4)},
-    {S(-17, -1), S(3, -11), S(-10, 12), S(24, 1)},
-    {S(-2, -34), S(4, -19), S(-31, 22), S(29, 30)},
-    {S(-47, 0), S(-18, -1), S(60, -12), S(6, 12)},
+    {S(-14, -4), S(-0, -3), S(10, -0), S(4, 7)},
+    {S(-23, 1), S(-7, -1), S(10, -0), S(20, -0)},
+    {S(-2, -3), S(-4, -0), S(1, -0), S(5, 4)},
+    {S(-17, -0), S(2, -10), S(-8, 10), S(23, 1)},
+    {S(-4, -31), S(1, -16), S(-28, 19), S(31, 28)},
+    {S(-44, 5), S(-2, -6), S(40, -5), S(6, 5)},
 };
-const int centralities[] = {S(16, -14), S(15, 15), S(22, 6), S(-7, -0), S(-1, 20), S(-27, 20)};
-const int outside_files[] = {S(2, -6), S(-3, -5), S(6, -4), S(-6, -2), S(-4, -1), S(2, -2)};
-const int pawn_protection[] = {S(10, 15), S(11, 21), S(-6, 18), S(-4, 13), S(-6, 17), S(-49, 22)};
-const int passers[] = {S(20, 6), S(10, 11), S(-2, 26), S(-7, 42), S(20, 111), S(107, 205)};
-const int pawn_doubled = S(-21, -27);
-const int pawn_passed_blocked = S(4, -46);
-const int bishop_pair = S(33, 56);
-const int rook_open = S(72, 1);
-const int rook_semi_open = S(30, 12);
-const int rook_rank78 = S(40, 2);
-const int king_shield[] = {S(24, -11), S(12, -16)};
+const int centralities[] = {S(14, -13), S(17, 15), S(24, 7), S(-4, -1), S(-0, 20), S(-23, 11)};
+const int outside_files[] = {S(4, -8), S(-2, -4), S(7, -3), S(-3, -3), S(-4, -2), S(-5, 5)};
+const int pawn_protection[] = {S(11, 14), S(11, 20), S(-6, 18), S(-3, 13), S(-5, 17), S(-47, 20)};
+const int passers[] = {S(17, 8), S(24, -1), S(26, 8), S(28, 30), S(66, 105), S(159, 202)};
+const int pawn_doubled = S(-24, -26);
+const int pawn_passed_blocked = S(-2, -34);
+const int pawn_passed_king_distance[] = {S(1, -5), S(-5, 7)};
+const int bishop_pair = S(35, 54);
+const int rook_open = S(74, 0);
+const int rook_semi_open = S(30, 14);
+const int rook_rank78 = S(37, 3);
+const int king_shield[] = {S(31, -12), S(17, -17), S(-96, 32)};
+const int pawn_attacked[] = {S(-61, -18), S(-53, -42)};
 
 [[nodiscard]] int eval(Position &pos) {
     // Include side to move bonus
@@ -373,9 +375,8 @@ const int king_shield[] = {S(24, -11), S(12, -16)};
         // our pawns, their pawns
         const BB pawns[] = {pos.colour[0] & pos.pieces[Pawn], pos.colour[1] & pos.pieces[Pawn]};
         const BB protected_by_pawns = nw(pawns[0]) | ne(pawns[0]);
-
-        const auto my_k_pos = lsb(pos.colour[0] & pos.pieces[King]);
-        const auto their_k_pos = lsb(pos.colour[1] & pos.pieces[King]);
+        const BB attacked_by_pawns = se(pawns[1]) | sw(pawns[1]);
+        const int kings[] = {lsb(pos.colour[0] & pos.pieces[King]), lsb(pos.colour[1] & pos.pieces[King])};
 
         // Bishop pair
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
@@ -411,6 +412,11 @@ const int king_shield[] = {S(24, -11), S(12, -16)};
                 if (piece_bb & protected_by_pawns) {
                     score += pawn_protection[p];
                 }
+                if (~pawns[0] & piece_bb & attacked_by_pawns) {
+                    // If we're to move, we'll just lose some options and our tempo.
+                    // If we're not to move, we lose a piece?
+                    score += pawn_attacked[c];
+                }
 
                 if (p == Pawn) {
                     // Passed pawns
@@ -426,10 +432,10 @@ const int king_shield[] = {S(24, -11), S(12, -16)};
 
                         // King defense/attack
                         // king distance to square in front of passer
-                        score -=
-                            S(0, 1) * (rank - 1) * max(abs((my_k_pos / 8) - (rank + 1)), abs((my_k_pos % 8) - file));
-                        score += S(0, 3) * (rank - 1) *
-                                 max(abs((their_k_pos / 8) - (rank + 1)), abs((their_k_pos % 8) - file));
+                        for (int i = 0; i < 2; ++i) {
+                            score += pawn_passed_king_distance[i] * (rank - 1) *
+                                     max(abs((kings[i] / 8) - (rank + 1)), abs((kings[i] % 8) - file));
+                        }
                     }
 
                     // Doubled pawns
@@ -455,6 +461,9 @@ const int king_shield[] = {S(24, -11), S(12, -16)};
                     const BB shield = file < 3 ? 0x700 : 0xE000;
                     score += count(shield & pawns[0]) * king_shield[0];
                     score += count(north(shield) & pawns[0]) * king_shield[1];
+
+                    // C3D7 = Reasonable king squares
+                    score += !(piece_bb & 0xC3D7) * king_shield[2];
                 }
             }
         }
@@ -506,6 +515,11 @@ int alphabeta(Position &pos,
               const int do_null = true) {
     const auto in_check = attacked(pos, lsb(pos.colour[0] & pos.pieces[King]));
     const int static_eval = eval(pos);
+
+    // Don't overflow the stack
+    if (ply > 127) {
+        return static_eval;
+    }
 
     // Check extensions
     depth = in_check ? max(1, depth + 1) : depth;
@@ -697,13 +711,14 @@ int alphabeta(Position &pos,
                 goto full_window;
             }
         }
-        moves_evaluated++;
 
         // Exit early if out of time
         if (stop || now() >= stop_time) {
             hash_history.pop_back();
             return 0;
         }
+
+        moves_evaluated++;
 
         if (score > best_score) {
             best_score = score;
@@ -744,6 +759,57 @@ int alphabeta(Position &pos,
     return alpha;
 }
 
+// minify delete on
+[[nodiscard]] bool is_pseudolegal_move(const Position &pos, const Move &move) {
+    Move moves[256];
+    const int num_moves = movegen(pos, moves, false);
+    for (int i = 0; i < num_moves; ++i) {
+        if (moves[i] == move) {
+            return true;
+        }
+    }
+    return false;
+}
+// minify delete off
+
+// minify delete on
+void print_pv(const Position &pos, const Move move, vector<BB> &hash_history) {
+    // Check move pseudolegality
+    if (!is_pseudolegal_move(pos, move)) {
+        return;
+    }
+
+    // Check move legality
+    auto npos = pos;
+    if (!makemove(npos, move)) {
+        return;
+    }
+
+    // Print current move
+    cout << " " << move_str(move, pos.flipped);
+
+    // Probe the TT in the resulting position
+    const BB tt_key = get_hash(npos);
+    const TT_Entry &tt_entry = transposition_table[tt_key % num_tt_entries];
+
+    // Only continue if the move was valid and comes from a PV search
+    if (tt_entry.key != tt_key || tt_entry.move == Move{} || tt_entry.flag != 0) {
+        return;
+    }
+
+    // Avoid infinite recursion on a repetition
+    for (const auto old_hash : hash_history) {
+        if (old_hash == tt_key) {
+            return;
+        }
+    }
+
+    hash_history.emplace_back(tt_key);
+    print_pv(npos, tt_entry.move, hash_history);
+    hash_history.pop_back();
+}
+// minify delete off
+
 auto iteratively_deepen(Position &pos,
                         vector<BB> &hash_history,
                         // minify delete on
@@ -783,28 +849,28 @@ auto iteratively_deepen(Position &pos,
             break;
         }
 
-        if (newscore >= score + window || newscore <= score - window) {
-            window *= 2.09;
-            research++;
-            score = newscore;
-            goto research;
-        }
-
-        score = newscore;
-
         // minify delete on
         if (thread_id == 0) {
             const auto elapsed = now() - start_time;
 
             cout << "info";
             cout << " depth " << i;
-            cout << " score cp " << score;
+            cout << " score cp " << newscore;
+            if (newscore >= score + window) {
+                cout << " lowerbound";
+            } else if (newscore <= score - window) {
+                cout << " upperbound";
+            }
             cout << " time " << elapsed;
             cout << " nodes " << nodes;
             if (elapsed > 0) {
                 cout << " nps " << nodes * 1000 / elapsed;
             }
-            cout << " pv " << move_str(stack[0].move, pos.flipped);
+            // Not a lowerbound - a fail low won't have a meaningful PV.
+            if (newscore > score - window) {
+                cout << " pv";
+                print_pv(pos, stack[0].move, hash_history);
+            }
             cout << endl;
 
             // OpenBench compliance
@@ -818,6 +884,14 @@ auto iteratively_deepen(Position &pos,
             }
         }
         // minify delete off
+
+        if (newscore >= score + window || newscore <= score - window) {
+            window <<= ++research;
+            score = newscore;
+            goto research;
+        }
+
+        score = newscore;
 
         // Early exit after completed ply
         if (!research && now() >= start_time + allocated_time / 10) {
