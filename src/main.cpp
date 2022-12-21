@@ -886,7 +886,7 @@ auto iteratively_deepen(Position &pos,
         // minify delete off
 
         if (newscore >= score + window || newscore <= score - window) {
-            window *= 2.33;
+            window *= 1.12;
             research++;
             score = newscore;
             goto research;
@@ -895,7 +895,7 @@ auto iteratively_deepen(Position &pos,
         score = newscore;
 
         // Early exit after completed ply
-        if (!research && now() >= start_time + allocated_time / 7) {
+        if (!research && now() >= start_time + allocated_time / 6) {
             break;
         }
     }
@@ -1040,7 +1040,7 @@ int main(
             int btime;
             cin >> word >> wtime >> word >> btime;
             const auto start = now();
-            const auto allocated_time = (pos.flipped ? btime : wtime) / 6;
+            const auto allocated_time = (pos.flipped ? btime : wtime) / 7;
 
             // Lazy SMP
             vector<thread> threads;
