@@ -856,7 +856,7 @@ auto iteratively_deepen(Position &pos,
 
     int score = 0;
     for (int i = 1; i < 128; ++i) {
-        auto window = 47;
+        auto window = 12;
         auto research = 0;
     research:
         const auto newscore = alphabeta(pos,
@@ -915,7 +915,7 @@ auto iteratively_deepen(Position &pos,
         // minify disable filter delete
 
         if (newscore >= score + window || newscore <= score - window) {
-            window *= 1.09;
+            window *= 1.25;
             ++research;
             score = newscore;
             goto research;
@@ -924,7 +924,7 @@ auto iteratively_deepen(Position &pos,
         score = newscore;
 
         // Early exit after completed ply
-        if (research < 4 && now() >= start_time + allocated_time / 13) {
+        if (research < 5 && now() >= start_time + allocated_time / 3) {
             break;
         }
     }
@@ -1076,7 +1076,7 @@ int main(
             // minify disable filter delete
 
             const auto start = now();
-            const auto allocated_time = (pos.flipped ? btime : wtime) / 5;
+            const auto allocated_time = (pos.flipped ? btime : wtime) / 15;
 
             // Lazy SMP
             vector<thread> threads;
